@@ -31,59 +31,44 @@ dim(train)
 # knn modeling ------------------------------------------------------------
 model_formula <- as.formula(Device ~ X + Y + Z)
 
+n_values <- c(1000, 500000, 750000, 1000000, 2000000, 5000000, 7000000, 10000000)
+k_values <- c(1, 2, 5, 7, 10, 12, 15, 17, 20)
 
-runtime <- c()
-n_value <- c()
-k_value <- c()
-
-n_values <- c(1000, 1000000, 10000000, 15000000, 20000000, 25000000, 29000000)
-k_values <- c(1000, 1000000, 10000000, 15000000, 20000000, 25000000, 29000000)
-
-runtime_dataframe <- expand.grid(n_values, k_values) %>%
+runtime_dataframe <- expand.grid(k_values, n_values) %>%
   as_tibble() %>%
-  rename(n=Var1, k=Var2) %>%
+  rename(k=Var1, n=Var2) %>%
   mutate(runtime = rep(0))
 
-count <- 0
+# for method 2
+count <- 1
 
-for (i in n_values) {
-  n <- train[1:i,]
-  round <- i
-  for (l in k_values) {
-    k <- l
+# for method 1
+# runtime <- c()
+
+for (i in 1:length(n_values)) {
+  n <- train[1:n_values[i],]
+  
+  for (l in 1:length(k_values)) {
+    k <- k_values[l]
     
     tic()
     model_knn <- caret::knn3(model_formula, data=n, k = k)
     timer_info <- toc()
     
-    # store run times
-    runtime_dataframe$runtime[count] = 
-      timer_info$toc - timer_info$tic
-    #runtime_df$n_value[length(n_value)+1] = round
-    #runtime_df$k_value[length(k_value)+1] = k
+    # store run times - method 1
+    # runtime = c(runtime, timer_info$toc - timer_info$tic)
+    
+    # store run times - method 2
+    runtime_dataframe$runtime[count] = timer_info$toc - timer_info$tic
     
     count = count + 1
+    
+    # store run times - method 3
+    # runtime_dataframe$runtime[((i - 1)*length(k_values)) + l] = timer_info$toc - timer_info$tic
 
   }
 }
 
-# fix data frame because we started the for loop using count = 0 rather than count = 1.
-# needed to shift all the runtime values down one cell, so that it is correspondinding to the 
-# correct (n,k) pairing
-
-runtime_dataframe2 <- runtime_dataframe
-
-count <- 49
-
-for (i in 1:49) {
-  if (count > 1) {
-  runtime_dataframe2$runtime[count] = runtime_dataframe2$runtime[count-1]
-  
-  count = count - 1
-  }
-  else 
-    runtime_dataframe2$runtime[count] = 0.00
-}
 
 
 # Test runtime knn here -----------------------------------------------------------
@@ -96,18 +81,19 @@ for (i in 1:49) {
 # Plot your results ---------------------------------------------------------
 # Think of creative ways to improve this barebones plot. Note: you don't have to
 # necessarily use geom_point
-runtime_plot <- ggplot(runtime_dataframe2, aes(x=n, y=k, col=runtime)) +
+runtime_plot <- ggplot(runtime_dataframe, aes(x=n, y=runtime, col=k)) +
   scale_colour_gradient(low = "white", high = "black") +
-  geom_point(size = 8)
+  geom_point(size = 3) + geom_smooth(method = "lm") + geom_jitter()
 
 runtime_plot
 ggsave(filename="meredith_manley.png", width=16, height = 9)
 
-# From this plot we can see that the runtime seems to be most sensitive to the number of 
-# neighbors that we select for our model. The greater the number of neighbors then the longer
-# it takes to run the model. If we are looking for the model to only take about 50 seconds to 
-# run then we could use the entire training set, but can use at most 20,000,000 neighbors to 
-# to have the model run efficiently.
+# From this plot we can see that as the size of the training set increases as the run time and thus
+# are positively associated with each other. When determining how k-nieghbors affects the run time
+# we look at the shade of the points. It appears as though the size of k does not substantially 
+# affect the run time. However for a trainig set size of 7,000,000 the largest run time corresponds
+# to the lowest k-neighbors value. Perhaps if time permitted and we added more possible values
+# for k-neighbors we would be able to have a better idea as to how this parameter affects run time.
 
 
 # Runtime complexity ------------------------------------------------------
@@ -118,6 +104,6 @@ ggsave(filename="meredith_manley.png", width=16, height = 9)
 # -d: number of predictors used? In this case d is fixed at 3
 
 # We know that d is fixed at 3, so that will simply be a constant in the algorithm and we know
-# from the plot we have just produced that k influences the runtime more significantly than
-# size of the training set therefore the Big-O algorithmic complexity as a function may look
-# like the follow: BigO_i = 3 + n + n^i
+# that there appears to be a positive linear relationship between run time and the size of the
+# training set so perhaps the we would have a function as follows:
+# complexity = n*k + d = O(n) as this appears to be linear.
